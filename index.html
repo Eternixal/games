@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pixel Space Runner</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #0a0a1f;
+      font-family: 'Courier New', monospace;
+      color: #ff00ff;
+      user-select: none;
+    }
+    canvas {
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    #ui {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    #startScreen, #gameOverScreen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: rgba(10, 10, 31, 0.95);
+      pointer-events: all;
+      transition: opacity 0.5s ease, transform 0.5s ease;
+      opacity: 1;
+    }
+    #startScreen.hidden, #gameOverScreen.hidden {
+      opacity: 0;
+      transform: scale(0.8);
+      pointer-events: none;
+    }
+    #startScreen h1 {
+      font-size: 3.5em;
+      text-transform: uppercase;
+      transform: rotate(-5deg);
+      text-shadow: 5px 5px #00ffff, -5px -5px #ff00ff;
+      animation: glitch 1.5s infinite;
+    }
+    #startScreen button, #gameOverScreen button {
+      background: none;
+      border: 3px solid #00ffff;
+      color: #00ffff;
+      font-size: 1.5em;
+      padding: 15px 40px;
+      cursor: pointer;
+      transform: skew(-15deg) rotate(3deg);
+      transition: all 0.3s ease;
+      pointer-events: all;
+      margin: 10px;
+      box-shadow: 0 0 10px #00ffff;
+    }
+    #startScreen button:hover, #gameOverScreen button:hover {
+      background: #00ffff;
+      color: #0a0a1f;
+      transform: skew(10deg) rotate(-3deg);
+      box-shadow: 0 0 20px #00ffff;
+    }
+    #score {
+      position: absolute;
+      top: 20px;
+      left: 30px;
+      font-size: 2em;
+      text-shadow: 2px 2px #00ffff;
+    }
+    #powerUpStatus {
+      position: absolute;
+      top: 60px;
+      left: 30px;
+      font-size: 1.5em;
+      color: #ffff00;
+      text-shadow: 2px 2px #ff00ff;
+    }
+    #gameOverScreen h2 {
+      font-size: 3em;
+      transform: rotate(5deg);
+      text-shadow: 4px 4px #ff00ff, -4px -4px #00ffff;
+      animation: glitch 1s infinite;
+    }
+    #leaderboard {
+      position: absolute;
+      top: 20px;
+      right: 30px;
+      font-size: 1.2em;
+      text-align: right;
+      color: #00ffff;
+      text-shadow: 2px 2px #ff00ff;
+    }
+    #touchControls {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      display: none;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .touchButton {
+      background: rgba(0, 255, 255, 0.3);
+      border: 2px solid #00ffff;
+      color: #00ffff;
+      font-size: 1.5em;
+      padding: 20px;
+      border-radius: 10px;
+      touch-action: none;
+      pointer-events: all;
+    }
+    @keyframes glitch {
+      0% { transform: translate(0) rotate(-5deg); }
+      20% { transform: translate(-5px, 5px) rotate(-5deg); }
+      40% { transform: translate(5px, -5px) rotate(-5deg); }
+      60% { transform: translate(-5px, 5px) rotate(-5deg); }
+      80% { transform: translate(5px, -5px) rotate(-5deg); }
+      100% { transform: translate(0) rotate(-5deg); }
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.2); }
+      100% { transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div id="ui">
+    <div id="startScreen">
+      <h1>Pixel Space Runner</h1>
+      <button onclick="startGame()">Launch</button>
+    </div>
+    <div id="score">Score: 0</div>
+    <div id="powerUpStatus"></div>
+    <div id="leaderboard"></div>
+    <div id="gameOverScreen" class="hidden">
+      <h2>Game Over</h2>
+      <p id="finalScore">Score: 0</p>
+      <button onclick="restartGame()">Retry</button>
+      <button onclick="backToMenu()">Main Menu</button>
+    </div>
+    <div id="touchControls">
+      <button class="touchButton" id="upButton">↑</button>
+      <button class="touchButton" id="downButton">↓</button>
+    </div>
+  </div>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const scoreDisplay = document.getElementById('score');
+    const finalScoreDisplay = document.getElementById('finalScore');
+    const powerUpStatus = document.getElementById('powerUpStatus');
+    const leaderboardDisplay = document.getElementById('leaderboard');
+    const touchControls = document.getElementById('touchControls');
+    const upButton = document.getElementById('upButton');
+    const downButton = document.getElementById('downButton');
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    let player = { x: 100, y: canvas.height / 2, width: 40, height: 20, speed: 5, shield: false, speedBoost: false };
+    let asteroids = [];
+    let powerUps = [];
+    let particles = [];
+    let stars = [];
+    let score = 0;
+    let gameRunning = false;
+    let highScores = JSON.parse(localStorage.getItem('highScores')) || [];
+
+    // Audio setup
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(frequency, type = 'sine', duration = 0.1) {
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      oscillator.type = type;
+      oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.currentTime ? audioCtx.destination : audioCtx);
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + duration);
+    }
+
+    // Background stars for parallax
+    for (let i = 0; i < 100; i++) {
+      stars.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        size: Math.random() * 3 + 1,
+        speed: Math.random() * 0.5 + 0.2
+      });
+    }
+
+    function drawPixelArt(x, y, width, height, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, width, height);
+      ctx.strokeStyle = '#000';
+      ctx.strokeRect(x, y, width, height);
+    }
+
+    function createParticles(x, y, color, count = 10) {
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x,
+          y,
+          vx: (Math.random() - 0.5) * 5,
+          vy: (Math.random() - 0.5) * 5,
+          size: Math.random() * 5 + 2,
+          color,
+          life: 30
+        });
+      }
+    }
+
+    function spawnAsteroid() {
+      const size = Math.random() * 30 + 20;
+      asteroids.push({
+        x: canvas.width,
+        y: Math.random() * (canvas.height - size),
+        width: size,
+        height: size,
+        speed: Math.random() * 3 + 2
+      });
+    }
+
+    function spawnPowerUp() {
+      const types = ['shield', 'speed'];
+      powerUps.push({
+        x: canvas.width,
+        y: Math.random() * (canvas.height - 20),
+        width: 20,
+        height: 20,
+        type: types[Math.floor(Math.random() * types.length)],
+        speed: 2
+      });
+    }
+
+    function updateLeaderboard() {
+      highScores.sort((a, b) => b - a);
+      highScores = highScores.slice(0, 5);
+      leaderboardDisplay.innerHTML = `High Scores:<br>${highScores.join('<br>')}`;
+    }
+
+    function update() {
+      if (!gameRunning) return;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw parallax background
+      stars.forEach(star => {
+        star.x -= star.speed;
+        if (star.x < 0) star.x = canvas.width;
+        drawPixelArt(star.x, star.y, star.size, star.size, '#fff');
+      });
+
+      // Draw player
+      drawPixelArt(player.x, player.y, player.width, player.height, player.shield ? '#ffff00' : '#00ffff');
+
+      // Update and draw asteroids
+      asteroids.forEach((asteroid, index) => {
+        asteroid.x -= asteroid.speed;
+        drawPixelArt(asteroid.x, asteroid.y, asteroid.width, asteroid.height, '#ff00ff');
+        if (asteroid.x + asteroid.width < 0) {
+          asteroids.splice(index, 1);
+          score += 10;
+          scoreDisplay.textContent = `Score: ${score}`;
+        }
+        // Collision detection
+        if (
+          !player.shield &&
+          player.x < asteroid.x + asteroid.width &&
+          player.x + player.width > asteroid.x &&
+          player.y < asteroid.y + asteroid.height &&
+          player.y + player.height > asteroid.y
+        ) {
+          endGame();
+        }
+      });
+
+      // Update and draw power-ups
+      powerUps.forEach((powerUp, index) => {
+        powerUp.x -= powerUp.speed;
+        drawPixelArt(powerUp.x, powerUp.y, powerUp.width, powerUp.height, powerUp.type === 'shield' ? '#ffff00' : '#00ff00');
+        if (powerUp.x + powerUp.width < 0) {
+          powerUps.splice(index, 1);
+        }
+        // Power-up collection
+        if (
+          player.x < powerUp.x + powerUp.width &&
+          player.x + player.width > powerUp.x &&
+          player.y < powerUp.y + powerUp.height &&
+          player.y + player.height > powerUp.y
+        ) {
+          powerUps.splice(index, 1);
+          createParticles(powerUp.x, powerUp.y, powerUp.type === 'shield' ? '#ffff00' : '#00ff00');
+          playSound(1000, 'square', 0.2);
+          if (powerUp.type === 'shield') {
+            player.shield = true;
+            powerUpStatus.textContent = 'Shield Active!';
+            setTimeout(() => {
+              player.shield = false;
+              powerUpStatus.textContent = '';
+            }, 5000);
+          } else {
+            player.speed = 8;
+            powerUpStatus.textContent = 'Speed Boost!';
+            setTimeout(() => {
+              player.speed = 5;
+              powerUpStatus.textContent = '';
+            }, 5000);
+          }
+        }
+      });
+
+      // Update and draw particles
+      particles.forEach((particle, index) => {
+        particle.x += particle.vx;
+        particle.y += particle.vy;
+        particle.life--;
+        drawPixelArt(particle.x, particle.y, particle.size, particle.size, particle.color);
+        if (particle.life <= 0) particles.splice(index, 1);
+      });
+
+      // Spawn new objects
+      if (Math.random() < 0.02) spawnAsteroid();
+      if (Math.random() < 0.005) spawnPowerUp();
+
+      requestAnimationFrame(update);
+    }
+
+    function movePlayer(event) {
+      if (!gameRunning) return;
+      if (event.key === 'ArrowUp' && player.y > 0) {
+        player.y -= player.speed;
+      }
+      if (event.key === 'ArrowDown' && player.y < canvas.height - player.height) {
+        player.y += player.speed;
+      }
+    }
+
+    // Touch controls
+    let touchActive = false;
+    function setupTouchControls() {
+      if ('ontouchstart' in window) {
+        touchControls.style.display = 'flex';
+        upButton.addEventListener('touchstart', () => {
+          touchActive = true;
+          player.y -= player.speed;
+        });
+        downButton.addEventListener('touchstart', () => {
+          touchActive = true;
+          player.y += player.speed;
+        });
+        upButton.addEventListener('touchend', () => touchActive = false);
+        downButton.addEventListener('touchend', () => touchActive = false);
+      }
+    }
+
+    function startGame() {
+      startScreen.classList.add('hidden');
+      gameRunning = true;
+      score = 0;
+      asteroids = [];
+      powerUps = [];
+      particles = [];
+      player.y = canvas.height / 2;
+      player.shield = false;
+      player.speed = 5;
+      scoreDisplay.textContent = `Score: ${score}`;
+      powerUpStatus.textContent = '';
+      playSound(440, 'sine', 0.3);
+      setupTouchControls();
+      update();
+    }
+
+    function endGame() {
+      gameRunning = false;
+      gameOverScreen.classList.remove('hidden');
+      finalScoreDisplay.textContent = `Score: ${score}`;
+      highScores.push(score);
+      localStorage.setItem('highScores', JSON.stringify(highScores));
+      updateLeaderboard();
+      playSound(220, 'square', 0.5);
+      touchControls.style.display = 'none';
+    }
+
+    function restartGame() {
+      gameOverScreen.classList.add('hidden');
+      startGame();
+    }
+
+    function backToMenu() {
+      gameOverScreen.classList.add('hidden');
+      startScreen.classList.remove('hidden');
+      touchControls.style.display = 'none';
+    }
+
+    window.addEventListener('keydown', movePlayer);
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      stars.forEach(star => {
+        star.x = Math.random() * canvas.width;
+        star.y = Math.random() * canvas.height;
+      });
+    });
+
+    updateLeaderboard();
+  </script>
+</body>
+</html>
