@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pixel Space Runner</title>
+  <title>Pixel Space Fighter</title>
   <style>
     body {
       margin: 0;
@@ -11,7 +11,6 @@
       background: #0a0a1f;
       font-family: 'Courier New', monospace;
       color: #ff00ff;
-      user-select: none;
     }
     canvas {
       display: block;
@@ -37,41 +36,31 @@
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      background: rgba(10, 10, 31, 0.95);
+      background: rgba(10, 10, 31, 0.9);
       pointer-events: all;
-      transition: opacity 0.5s ease, transform 0.5s ease;
-      opacity: 1;
-    }
-    #startScreen.hidden, #gameOverScreen.hidden {
-      opacity: 0;
-      transform: scale(0.8);
-      pointer-events: none;
     }
     #startScreen h1 {
-      font-size: 3.5em;
+      font-size: 3em;
       text-transform: uppercase;
       transform: rotate(-5deg);
-      text-shadow: 5px 5px #00ffff, -5px -5px #ff00ff;
-      animation: glitch 1.5s infinite;
+      text-shadow: 5px 5px #00ffff;
+      animation: glitch 2s infinite;
     }
     #startScreen button, #gameOverScreen button {
       background: none;
       border: 3px solid #00ffff;
       color: #00ffff;
       font-size: 1.5em;
-      padding: 15px 40px;
+      padding: 15px 30px;
       cursor: pointer;
-      transform: skew(-15deg) rotate(3deg);
-      transition: all 0.3s ease;
+      transform: skew(-10deg);
+      transition: all 0.3s;
       pointer-events: all;
-      margin: 10px;
-      box-shadow: 0 0 10px #00ffff;
     }
     #startScreen button:hover, #gameOverScreen button:hover {
       background: #00ffff;
       color: #0a0a1f;
-      transform: skew(10deg) rotate(-3deg);
-      box-shadow: 0 0 20px #00ffff;
+      transform: skew(10deg);
     }
     #score {
       position: absolute;
@@ -80,59 +69,29 @@
       font-size: 2em;
       text-shadow: 2px 2px #00ffff;
     }
-    #powerUpStatus {
+    #gameOverScreen h2 {
+      font-size: 2.5em;
+      transform: rotate(5deg);
+      text-shadow: 4px 4px #ff00ff;
+      animation: glitch 1.5s infinite;
+    }
+    #powerUpMessage {
       position: absolute;
       top: 60px;
       left: 30px;
       font-size: 1.5em;
-      color: #ffff00;
+      color: #00ff00;
       text-shadow: 2px 2px #ff00ff;
-    }
-    #gameOverScreen h2 {
-      font-size: 3em;
-      transform: rotate(5deg);
-      text-shadow: 4px 4px #ff00ff, -4px -4px #00ffff;
-      animation: glitch 1s infinite;
-    }
-    #leaderboard {
-      position: absolute;
-      top: 20px;
-      right: 30px;
-      font-size: 1.2em;
-      text-align: right;
-      color: #00ffff;
-      text-shadow: 2px 2px #ff00ff;
-    }
-    #touchControls {
-      position: absolute;
-      bottom: 20px;
-      left: 20px;
-      display: none;
-      flex-direction: column;
-      gap: 20px;
-    }
-    .touchButton {
-      background: rgba(0, 255, 255, 0.3);
-      border: 2px solid #00ffff;
-      color: #00ffff;
-      font-size: 1.5em;
-      padding: 20px;
-      border-radius: 10px;
-      touch-action: none;
-      pointer-events: all;
+      opacity: 0;
+      transition: opacity 1s;
     }
     @keyframes glitch {
-      0% { transform: translate(0) rotate(-5deg); }
-      20% { transform: translate(-5px, 5px) rotate(-5deg); }
-      40% { transform: translate(5px, -5px) rotate(-5deg); }
-      60% { transform: translate(-5px, 5px) rotate(-5deg); }
-      80% { transform: translate(5px, -5px) rotate(-5deg); }
-      100% { transform: translate(0) rotate(-5deg); }
-    }
-    @keyframes pulse {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.2); }
-      100% { transform: scale(1); }
+      0% { transform: translate(0); }
+      20% { transform: translate(-5px, 5px); }
+      40% { transform: translate(5px, -5px); }
+      60% { transform: translate(-5px, 5px); }
+      80% { transform: translate(5px, -5px); }
+      100% { transform: translate(0); }
     }
   </style>
 </head>
@@ -140,21 +99,15 @@
   <canvas id="gameCanvas"></canvas>
   <div id="ui">
     <div id="startScreen">
-      <h1>Pixel Space Runner</h1>
+      <h1>Pixel Space Fighter</h1>
       <button onclick="startGame()">Launch</button>
     </div>
     <div id="score">Score: 0</div>
-    <div id="powerUpStatus"></div>
-    <div id="leaderboard"></div>
-    <div id="gameOverScreen" class="hidden">
+    <div id="powerUpMessage"></div>
+    <div id="gameOverScreen" style="display: none;">
       <h2>Game Over</h2>
       <p id="finalScore">Score: 0</p>
       <button onclick="restartGame()">Retry</button>
-      <button onclick="backToMenu()">Main Menu</button>
-    </div>
-    <div id="touchControls">
-      <button class="touchButton" id="upButton">↑</button>
-      <button class="touchButton" id="downButton">↓</button>
     </div>
   </div>
   <script>
@@ -164,181 +117,204 @@
     const gameOverScreen = document.getElementById('gameOverScreen');
     const scoreDisplay = document.getElementById('score');
     const finalScoreDisplay = document.getElementById('finalScore');
-    const powerUpStatus = document.getElementById('powerUpStatus');
-    const leaderboardDisplay = document.getElementById('leaderboard');
-    const touchControls = document.getElementById('touchControls');
-    const upButton = document.getElementById('upButton');
-    const downButton = document.getElementById('downButton');
+    const powerUpMessage = document.getElementById('powerUpMessage');
 
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    let player = { x: 100, y: canvas.height / 2, width: 40, height: 20, speed: 5, shield: false, speedBoost: false };
-    let asteroids = [];
+    let player = { x: 100, y: canvas.height / 2, width: 50, height: 30, speed: 5, bulletSpeed: 10, fireRate: 10 };
+    let bullets = [];
+    let enemies = [];
     let powerUps = [];
-    let particles = [];
-    let stars = [];
     let score = 0;
     let gameRunning = false;
-    let highScores = JSON.parse(localStorage.getItem('highScores')) || [];
+    let frameCount = 0;
+    let powerUpActive = false;
+    let powerUpTimer = 0;
 
-    // Audio setup
+    // Audio Context for sound effects
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    function playSound(frequency, type = 'sine', duration = 0.1) {
+    function playSound(frequency, type, duration) {
       const oscillator = audioCtx.createOscillator();
       const gainNode = audioCtx.createGain();
       oscillator.type = type;
       oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
       gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
       oscillator.connect(gainNode);
-      gainNode.connect(audioCtx.currentTime ? audioCtx.destination : audioCtx);
+      gainNode.connect(audioCtx.currentTime);
       oscillator.start();
       oscillator.stop(audioCtx.currentTime + duration);
     }
 
-    // Background stars for parallax
-    for (let i = 0; i < 100; i++) {
-      stars.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        size: Math.random() * 3 + 1,
-        speed: Math.random() * 0.5 + 0.2
-      });
-    }
-
-    function drawPixelArt(x, y, width, height, color) {
+    function drawPixelJet(x, y, width, height, color) {
       ctx.fillStyle = color;
-      ctx.fillRect(x, y, width, height);
+      ctx.beginPath();
+      ctx.moveTo(x, y + height / 2);
+      ctx.lineTo(x + width * 0.3, y);
+      ctx.lineTo(x + width, y + height * 0.3);
+      ctx.lineTo(x + width, y + height * 0.7);
+      ctx.lineTo(x + width * 0.3, y + height);
+      ctx.closePath();
+      ctx.fill();
       ctx.strokeStyle = '#000';
-      ctx.strokeRect(x, y, width, height);
+      ctx.stroke();
     }
 
-    function createParticles(x, y, color, count = 10) {
-      for (let i = 0; i < count; i++) {
-        particles.push({
-          x,
-          y,
-          vx: (Math.random() - 0.5) * 5,
-          vy: (Math.random() - 0.5) * 5,
-          size: Math.random() * 5 + 2,
-          color,
-          life: 30
-        });
-      }
+    function drawPixelAlien(x, y, width, height, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(x, y + height * 0.3);
+      ctx.lineTo(x + width * 0.5, y);
+      ctx.lineTo(x + width, y + height * 0.3);
+      ctx.lineTo(x + width * 0.7, y + height);
+      ctx.lineTo(x + width * 0.3, y + height);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#000';
+      ctx.stroke();
     }
 
-    function spawnAsteroid() {
-      const size = Math.random() * 30 + 20;
-      asteroids.push({
+    function spawnEnemy() {
+      const size = 40;
+      enemies.push({
         x: canvas.width,
         y: Math.random() * (canvas.height - size),
         width: size,
         height: size,
-        speed: Math.random() * 3 + 2
+        speed: Math.random() * 3 + 2,
+        amplitude: Math.random() * 50 + 50,
+        frequency: Math.random() * 0.02 + 0.01,
+        phase: Math.random() * Math.PI * 2
       });
     }
 
     function spawnPowerUp() {
-      const types = ['shield', 'speed'];
+      const size = 20;
       powerUps.push({
         x: canvas.width,
-        y: Math.random() * (canvas.height - 20),
-        width: 20,
-        height: 20,
-        type: types[Math.floor(Math.random() * types.length)],
-        speed: 2
+        y: Math.random() * (canvas.height - size),
+        width: size,
+        height: size,
+        speed: 2,
+        type: Math.random() > 0.5 ? 'speed' : 'bullet'
       });
     }
 
-    function updateLeaderboard() {
-      highScores.sort((a, b) => b - a);
-      highScores = highScores.slice(0, 5);
-      leaderboardDisplay.innerHTML = `High Scores:<br>${highScores.join('<br>')}`;
+    function activatePowerUp(type) {
+      powerUpActive = true;
+      powerUpTimer = 300; // 5 seconds at 60 FPS
+      if (type === 'speed') {
+        player.speed = 8;
+        powerUpMessage.textContent = 'Speed Boost!';
+      } else {
+        player.bulletSpeed = 15;
+        player.fireRate = 5;
+        powerUpMessage.textContent = 'Rapid Fire!';
+      }
+      powerUpMessage.style.opacity = '1';
+      setTimeout(() => {
+        powerUpMessage.style.opacity = '0';
+      }, 1000);
     }
 
     function update() {
       if (!gameRunning) return;
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      frameCount++;
 
-      // Draw parallax background
-      stars.forEach(star => {
-        star.x -= star.speed;
-        if (star.x < 0) star.x = canvas.width;
-        drawPixelArt(star.x, star.y, star.size, star.size, '#fff');
+      // Draw background stars
+      for (let i = 0; i < 100; i++) {
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 2, 2);
+      }
+
+      // Draw player jet
+      drawPixelJet(player.x, player.y, player.width, player.height, '#00ffff');
+
+      // Handle bullets
+      bullets.forEach((bullet, index) => {
+        bullet.x += bullet.speed;
+        ctx.fillStyle = '#ffff00';
+        ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+        if (bullet.x > canvas.width) {
+          bullets.splice(index, 1);
+        }
       });
 
-      // Draw player
-      drawPixelArt(player.x, player.y, player.width, player.height, player.shield ? '#ffff00' : '#00ffff');
-
-      // Update and draw asteroids
-      asteroids.forEach((asteroid, index) => {
-        asteroid.x -= asteroid.speed;
-        drawPixelArt(asteroid.x, asteroid.y, asteroid.width, asteroid.height, '#ff00ff');
-        if (asteroid.x + asteroid.width < 0) {
-          asteroids.splice(index, 1);
-          score += 10;
+      // Move and draw enemies
+      enemies.forEach((enemy, index) => {
+        enemy.x -= enemy.speed;
+        enemy.y += Math.sin(frameCount * enemy.frequency + enemy.phase) * enemy.amplitude / 60;
+        drawPixelAlien(enemy.x, enemy.y, enemy.width, enemy.height, '#ff00ff');
+        if (enemy.x + enemy.width < 0) {
+          enemies.splice(index, 1);
+          score += 50;
           scoreDisplay.textContent = `Score: ${score}`;
         }
-        // Collision detection
+        // Collision with player
         if (
-          !player.shield &&
-          player.x < asteroid.x + asteroid.width &&
-          player.x + player.width > asteroid.x &&
-          player.y < asteroid.y + asteroid.height &&
-          player.y + player.height > asteroid.y
+          player.x < enemy.x + enemy.width &&
+          player.x + player.width > enemy.x &&
+          player.y < enemy.y + enemy.height &&
+          player.y + player.height > enemy.y
         ) {
           endGame();
         }
+        // Collision with bullets
+        bullets.forEach((bullet, bIndex) => {
+          if (
+            bullet.x < enemy.x + enemy.width &&
+            bullet.x + bullet.width > enemy.x &&
+            bullet.y < enemy.y + enemy.height &&
+            bullet.y + bullet.height > enemy.y
+          ) {
+            enemies.splice(index, 1);
+            bullets.splice(bIndex, 1);
+            score += 100;
+            scoreDisplay.textContent = `Score: ${score}`;
+            playSound(200, 'square', 0.2); // Explosion sound
+          }
+        });
       });
 
-      // Update and draw power-ups
+      // Move and draw power-ups
       powerUps.forEach((powerUp, index) => {
         powerUp.x -= powerUp.speed;
-        drawPixelArt(powerUp.x, powerUp.y, powerUp.width, powerUp.height, powerUp.type === 'shield' ? '#ffff00' : '#00ff00');
+        ctx.fillStyle = powerUp.type === 'speed' ? '#00ff00' : '#ff0000';
+        ctx.fillRect(powerUp.x, powerUp.y, powerUp.width, powerUp.height);
+        ctx.strokeStyle = '#000';
+        ctx.strokeRect(powerUp.x, powerUp.y, powerUp.width, powerUp.height);
         if (powerUp.x + powerUp.width < 0) {
           powerUps.splice(index, 1);
         }
-        // Power-up collection
+        // Collision with player
         if (
           player.x < powerUp.x + powerUp.width &&
           player.x + player.width > powerUp.x &&
           player.y < powerUp.y + powerUp.height &&
           player.y + player.height > powerUp.y
         ) {
+          activatePowerUp(powerUp.type);
           powerUps.splice(index, 1);
-          createParticles(powerUp.x, powerUp.y, powerUp.type === 'shield' ? '#ffff00' : '#00ff00');
-          playSound(1000, 'square', 0.2);
-          if (powerUp.type === 'shield') {
-            player.shield = true;
-            powerUpStatus.textContent = 'Shield Active!';
-            setTimeout(() => {
-              player.shield = false;
-              powerUpStatus.textContent = '';
-            }, 5000);
-          } else {
-            player.speed = 8;
-            powerUpStatus.textContent = 'Speed Boost!';
-            setTimeout(() => {
-              player.speed = 5;
-              powerUpStatus.textContent = '';
-            }, 5000);
-          }
         }
       });
 
-      // Update and draw particles
-      particles.forEach((particle, index) => {
-        particle.x += particle.vx;
-        particle.y += particle.vy;
-        particle.life--;
-        drawPixelArt(particle.x, particle.y, particle.size, particle.size, particle.color);
-        if (particle.life <= 0) particles.splice(index, 1);
-      });
-
-      // Spawn new objects
-      if (Math.random() < 0.02) spawnAsteroid();
+      // Spawn new enemies and power-ups
+      if (Math.random() < 0.02) spawnEnemy();
       if (Math.random() < 0.005) spawnPowerUp();
+
+      // Handle power-up timer
+      if (powerUpActive) {
+        powerUpTimer--;
+        if (powerUpTimer <= 0) {
+          powerUpActive = false;
+          player.speed = 5;
+          player.bulletSpeed = 10;
+          player.fireRate = 10;
+        }
+      }
 
       requestAnimationFrame(update);
     }
@@ -351,76 +327,54 @@
       if (event.key === 'ArrowDown' && player.y < canvas.height - player.height) {
         player.y += player.speed;
       }
-    }
-
-    // Touch controls
-    let touchActive = false;
-    function setupTouchControls() {
-      if ('ontouchstart' in window) {
-        touchControls.style.display = 'flex';
-        upButton.addEventListener('touchstart', () => {
-          touchActive = true;
-          player.y -= player.speed;
-        });
-        downButton.addEventListener('touchstart', () => {
-          touchActive = true;
-          player.y += player.speed;
-        });
-        upButton.addEventListener('touchend', () => touchActive = false);
-        downButton.addEventListener('touchend', () => touchActive = false);
+      if (event.key === ' ') {
+        if (frameCount % player.fireRate === 0) {
+          bullets.push({
+            x: player.x + player.width,
+            y: player.y + player.height / 2 - 2,
+            width: 10,
+            height: 4,
+            speed: player.bulletSpeed
+          });
+          playSound(800, 'square', 0.1); // Shoot sound
+        }
       }
     }
 
     function startGame() {
-      startScreen.classList.add('hidden');
+      startScreen.style.display = 'none';
       gameRunning = true;
       score = 0;
-      asteroids = [];
+      frameCount = 0;
+      bullets = [];
+      enemies = [];
       powerUps = [];
-      particles = [];
+      powerUpActive = false;
       player.y = canvas.height / 2;
-      player.shield = false;
       player.speed = 5;
+      player.bulletSpeed = 10;
+      player.fireRate = 10;
       scoreDisplay.textContent = `Score: ${score}`;
-      powerUpStatus.textContent = '';
-      playSound(440, 'sine', 0.3);
-      setupTouchControls();
+      powerUpMessage.style.opacity = '0';
       update();
     }
 
     function endGame() {
       gameRunning = false;
-      gameOverScreen.classList.remove('hidden');
+      gameOverScreen.style.display = 'flex';
       finalScoreDisplay.textContent = `Score: ${score}`;
-      highScores.push(score);
-      localStorage.setItem('highScores', JSON.stringify(highScores));
-      updateLeaderboard();
-      playSound(220, 'square', 0.5);
-      touchControls.style.display = 'none';
     }
 
     function restartGame() {
-      gameOverScreen.classList.add('hidden');
+      gameOverScreen.style.display = 'none';
       startGame();
-    }
-
-    function backToMenu() {
-      gameOverScreen.classList.add('hidden');
-      startScreen.classList.remove('hidden');
-      touchControls.style.display = 'none';
     }
 
     window.addEventListener('keydown', movePlayer);
     window.addEventListener('resize', () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
-      stars.forEach(star => {
-        star.x = Math.random() * canvas.width;
-        star.y = Math.random() * canvas.height;
-      });
     });
-
-    updateLeaderboard();
   </script>
 </body>
 </html>
